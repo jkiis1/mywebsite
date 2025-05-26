@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pemutar Lagu YouTube + Semua Fitur</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-color: #f0f4f8;
+      --text-color: #333;
+      --item-bg: white;
+      --item-hover: #e3f2fd;
+      --primary: #2196f3;
+    }
+
+    body.dark {
+      --bg-color: #121212;
+      --text-color: #fff;
+      --item-bg: #1f1f1f;
+      --item-hover: #333;
+      --primary: #90caf9;
+    }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: all 0.3s ease;
+    }
+
+    h1 {
+      text-align: center;
+      color: var(--text-color);
+    }
+
+    #searchContainer {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      width: 60%;
+      max-width: 400px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 15px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      margin: 5px;
+    }
+
+    button:hover {
+      background-color: #1976d2;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    li {
+      margin: 10px 0;
+      cursor: pointer;
+      background: var(--item-bg);
+      padding: 15px;
+      border-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s, background-color 0.2s;
+    }
+
+    li:hover {
+      background-color: var(--item-hover);
+      transform: scale(1.02);
+    }
+
+    iframe {
+      width: 100%;
+      max-width: 560px;
+      height: 315px;
+      border: none;
+      display: block;
+      margin: 30px auto 0;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #controls {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-top: 40px;
+    }
+
+    @media screen and (max-width: 600px) {
+      input[type="text"] {
+        width: 90%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Pemutar Lagu YouTube</h1>
+
+  <div id="controls">
+    <button onclick="toggleDarkMode()">🌙/☀️ Dark Mode</button>
+    <button onclick="showFavorites()">❤️ Lihat Favorit</button>
+    <button onclick="showHistory()">🕘 Riwayat</button>
+  </div>
+
+  <div id="searchContainer">
+    <input type="text" id="searchInput" placeholder="Cari lagu favoritmu..." />
+    <button onclick="searchYouTube()">Cari</button>
+  </div>
+
+  <ul id="results"></ul>
+
+  <iframe id="youtubePlayer" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+
+  <h2 class="section-title">🎵 Lagu Favorit</h2>
+  <ul id="favorites"></ul>
+
+  <h2 class="section-title">🕘 Riwayat Pencarian</h2>
+  <ul id="history"></ul>
+
+  <script>
+    const apiKey = 'AIzaSyBNDs5DgiSbjJKiuA8xIy9_PsE-0ogB17I'; // Ganti dengan API key YouTube kamu
+    const resultsEl = document.getElementById('results');
+    const playerEl = document.getElementById('youtubePlayer');
+    const favoritesEl = document.getElementById('favorites');
+    const historyEl = document.getElementById('history');
+
+    // Load favorites & history
+    let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
+    let history = JSON.parse(localStorage.getItem('history')) || [];
+
+    function searchYouTube() {
+      const query = document.getElementById('searchInput').value;
+      if (!query) return;
+      addToHistory(query);
+      resultsEl.innerHTML = 'Sedang mencari...';
+
+      fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(query)}&key=${apiKey}`)
+        .then(response => response.json())
+        .then(data => {
+          resultsEl.innerHTML = '';
+          if (data.items.length === 0) {
+            resultsEl.innerHTML = '<li>Tidak ditemukan.</li>';
+            return;
+          }
+
+          data.items.forEach((item, index) => {
+            const videoId = item.id.videoId;
+            const title = item.snippet.title;
+
+            const li = document.createElement('li');
+            li.innerHTML = `${title} <button style="float:right;" onclick="addFavorite(event, '${videoId}', '${escapeQuotes(title)}')">❤️</button>`;
+            li.onclick = () => playVideo(videoId);
+            resultsEl.appendChild(li);
+
+            // Auto play lagu pertama
+            if (index === 0) playVideo(videoId);
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          resultsEl.innerHTML = 'Gagal mencari.';
+        });
+    }
+
+    function escapeQuotes(str) {
+      return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    function playVideo(videoId) {
+      playerEl.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    }
+
+    function addFavorite(event, videoId, title) {
+      event.stopPropagation(); // supaya tidak ikut klik video
+      if (!favorites.find(f => f.id === videoId)) {
+        favorites.push({ id: videoId, title });
+        localStorage.setItem('favorites', JSON.stringify(favorites));
+        showFavorites();
+      }
+    }
+
+    function showFavorites() {
+      favoritesEl.innerHTML = '';
+      if (favorites.length === 0) {
+        favoritesEl.innerHTML = '<li>Belum ada lagu favorit.</li>';
+        return;
+      }
+      favorites.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.title;
+        li.onclick = () => playVideo(item.id);
+        favoritesEl.appendChild(li);
+      });
+    }
+
+    function addToHistory(query) {
+      if (!history.includes(query)) {
+        history.unshift(query);
+        if (history.length > 10) history.pop();
+        localStorage.setItem('history', JSON.stringify(history));
+        showHistory();
+      }
+    }
+
+    function showHistory() {
+      historyEl.innerHTML = '';
+      if (history.length === 0) {
+        historyEl.innerHTML = '<li>Belum ada riwayat pencarian.</li>';
+        return;
+      }
+      history.forEach(q => {
+        const li = document.createElement('li');
+        li.textContent = q;
+        li.onclick = () => {
+          document.getElementById('searchInput').value = q;
+          searchYouTube();
+        };
+        historyEl.appendChild(li);
+      });
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark');
+    }
+
+    // Muat awal
+    showFavorites();
+    showHistory();
+  </script>
+</body>
+</html>
